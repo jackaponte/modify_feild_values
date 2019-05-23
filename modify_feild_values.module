@@ -1,0 +1,176 @@
+<?php
+/**
+ * @file
+ * An action for Views Bulk Operations: Modify Field Values
+ */
+
+/**
+ * Implements hook_action_info().
+ */
+function modify_feild_values_action_info() {
+  $actions = array();
+
+  $entities = entity_get_info();
+  foreach ($entities as $machine_name => $entity) {
+    // @todo remove me: limit this to nodes until it is working.
+    if ($entity['fieldable'] && $machine_name == 'node') {
+      $actions['modify_feild_values_' . $machine_name . '_action'] = array(
+        'type' => $machine_name,
+        'label' => t('Remove category'),
+        'callback' => 'modify_feild_values_action',
+        'configurable' => TRUE,
+      );
+    }
+  }
+
+  return $actions;
+}
+
+/**
+ * Queues a node for deletion.
+ *
+ * @param Node $node
+ *   A node entity.
+ * @param $context
+ *   Contextual information about the triggered action.
+ *
+ * @ingroup actions
+ */
+function modify_feild_values_action(Node $node, &$context) {
+  // Save the list of items to be modified in the session. Append to the
+  // existing list if within the last minute, otherwise start a new list.
+  $last_action_time = 0;
+  if (isset($_SESSION['modify_field_action'])) {
+    $last_action_time = $_SESSION['modify_field_action']['timestamp'];
+  }
+  if (REQUEST_TIME - $last_action_time > 60) {
+    $_SESSION['modify_field_action'] = array(
+      'timestamp' => REQUEST_TIME,
+      'nids' => array(),
+    );
+  }
+
+  $_SESSION['modify_field_action']['nids'][] = $node->nid;
+  $context['redirect'] = 'admin/modify/field';
+}
+
+/**
+ * Implements hook_menu().
+ */
+function modify_feild_values_menu() {
+  $items['admin/modify/field'] = array(
+    'title' => 'Modify field values',
+    'page callback' => 'backdrop_get_form',
+    'page arguments' => array('modify_feild_values_action_confirm'),
+    'access arguments' => array('access content'),
+    'type' => MENU_CALLBACK,
+    //'file' => 'modify_feild_values.pages.inc',
+  );
+
+  return $items;
+}
+
+/**
+ * Multiple node deletion confirmation form.
+ *
+ * @see node_multiple_delete_confirm_submit()
+ *
+ * @ingroup forms
+ */
+function modify_feild_values_action_confirm($form, &$form_state) {
+  if (isset($form_state['nids'])) {
+    $nids = $form_state['nids'];
+  }
+  elseif (isset($_SESSION['modify_field_action']['timestamp'])
+    && (REQUEST_TIME - $_SESSION['modify_field_action']['timestamp'] < 6000)) {
+
+    $nids = $_SESSION['modify_field_action']['nids'];
+    $form_state['nids'] = $nids;
+    $form_state['cache'] = TRUE;
+    unset($_SESSION['modify_field_action']);
+  }
+  else {
+    $nids = array();
+  }
+
+  $form['#tree'] = TRUE;
+
+  // @todo make this work for all entities and all fields.
+  $options = db_query("SELECT tid, name from {taxonomy_term_data} WHERE vocabulary = 'vocabulary_1' ORDER BY name ASC")->fetchAllKeyed(0, 1);
+  $form['remove_term'] = array(
+    '#type' => 'select',
+    '#title' => t('Remove this category'),
+    '#options' => $options,
+  );
+  $form['from'] = array(
+    '#type' => 'markup',
+    '#markup' => '<strong>' . t('From these items:') . '</strong>',
+  );
+
+  if (empty($nids)) {
+    $destination = isset($_GET['destination']) ? $_GET['destination'] : 'admin/content/node';
+    $form['empty']['#markup'] = '<p>' . t('Return to the <a href="!url">content administration page</a>.', array('!url' => url($destination))) . '</p>';
+    backdrop_set_message(t('No content has been selected for modification.'), 'error');
+    return $form;
+  }
+
+  $form['node_list'] = array(
+    '#theme' => 'item_list',
+    '#items' => array(),
+  );
+
+  $rows = db_query('SELECT nid, title FROM {node} WHERE nid IN (:nids)', array(':nids' => $nids))->fetchAllKeyed();
+  foreach ($rows as $nid => $title) {
+    $form['nodes'][$nid] = array(
+      '#type' => 'hidden',
+      '#value' => $nid,
+    );
+    $form['node_list']['#items'][] = check_plain($title);
+  }
+
+  $confirm_question = format_plural(count($rows), 'Are you sure you want to modify this item?', 'Are you sure you want to modify these items?');
+  return confirm_form($form, $confirm_question, 'admin/content', t('This action cannot be undone.'), t('Remove'), t('Cancel'));
+}
+
+/**
+ * Multiple node deletion confirmation form.
+ *
+ * @see node_multiple_delete_confirm_submit()
+ *
+ * @ingroup forms
+ */
+function modify_feild_values_action_confirm_submit($form, &$form_state) {
+  $tid = $form_state['values']['remove_term'];
+
+  $nodes = node_load_multiple(array_keys($form_state['values']['nodes']));
+  foreach ($nodes as $node) {
+    if (property_exists($node, 'taxonomy_vocabulary_1')) {
+      $lang = $node->langcode;
+      foreach ($node->taxonomy_vocabulary_1[$lang] as $delta => $value) {
+        if ($value['tid'] == $tid) {
+          unset($node->taxonomy_vocabulary_1[$lang][$delta]);
+        }
+      }
+    }
+    $node->save();
+  }
+
+  cache_clear_all();
+
+  $count = count($form_state['values']['nodes']);
+  watchdog('content', 'Modified @count items.', array('@count' => $count));
+  backdrop_set_message(format_plural($count, 'Modified 1 item.', 'Modified @count item.'));
+  $form_state['redirect'] = 'admin/content';
+}
+
+/**
+ * Form submission handler for node_multiple_delete_confirm().
+ */
+function node_multiple_delete_confirm_submit($form, &$form_state) {
+
+  cache_clear_all();
+
+
+
+}
+

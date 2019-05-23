@@ -1,0 +1,4 @@
+name = Modify Field Values
+description = An action for views Bulk Operations: Modify Field Values
+package = Views
+backdrop = 1.x
