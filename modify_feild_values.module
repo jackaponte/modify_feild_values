@@ -104,7 +104,7 @@ function modify_feild_values_action_confirm($form, &$form_state) {
   );
   $form['from'] = array(
     '#type' => 'markup',
-    '#markup' => '<strong>' . t('From these items:') . '</strong>',
+    '#markup' => '<strong>' . t('To these items:') . '</strong>',
   );
 
   if (empty($nids)) {
@@ -129,7 +129,7 @@ function modify_feild_values_action_confirm($form, &$form_state) {
   }
 
   $confirm_question = format_plural(count($rows), 'Are you sure you want to modify this item?', 'Are you sure you want to modify these items?');
-  return confirm_form($form, $confirm_question, 'admin/content', t('This action cannot be undone.'), t('Remove'), t('Cancel'));
+  return confirm_form($form, $confirm_question, 'admin/content', t('This action cannot be undone.'), t('Add term'), t('Cancel'));
 }
 
 /**
@@ -141,17 +141,11 @@ function modify_feild_values_action_confirm($form, &$form_state) {
  */
 function modify_feild_values_action_confirm_submit($form, &$form_state) {
   $tid = $form_state['values']['add_term'];
-  dpm($tid);
   $nodes = node_load_multiple(array_keys($form_state['values']['nodes']));
   foreach ($nodes as $node) {
-    dpm($node);
     if (property_exists($node, 'field_site_sections')) {
       $lang = $node->langcode;
-      //foreach ($node->taxonomy_site_sections[$lang] as $delta => $value) {
-      //  if ($value['tid'] == $tid) {
           $node->field_site_sections[$lang][0]['tid'] = $tid;
-      //  }
-      // }
     }
     $node->save();
   }
@@ -160,7 +154,7 @@ function modify_feild_values_action_confirm_submit($form, &$form_state) {
 
   $count = count($form_state['values']['nodes']);
   watchdog('content', 'Modified @count items.', array('@count' => $count));
-  backdrop_set_message(format_plural($count, 'Modified 1 item.', 'Modified @count item.'));
+  backdrop_set_message(format_plural($count, 'Modified 1 item.', 'Modified @count items.'));
   $form_state['redirect'] = 'admin/content';
 }
 
