@@ -16,7 +16,7 @@ function modify_feild_values_action_info() {
     if ($entity['fieldable'] && $machine_name == 'node') {
       $actions['modify_feild_values_' . $machine_name . '_action'] = array(
         'type' => $machine_name,
-        'label' => t('Remove category'),
+        'label' => t('Add category'),
         'callback' => 'modify_feild_values_action',
         'configurable' => TRUE,
       );
@@ -96,10 +96,10 @@ function modify_feild_values_action_confirm($form, &$form_state) {
   $form['#tree'] = TRUE;
 
   // @todo make this work for all entities and all fields.
-  $options = db_query("SELECT tid, name from {taxonomy_term_data} WHERE vocabulary = 'vocabulary_1' ORDER BY name ASC")->fetchAllKeyed(0, 1);
-  $form['remove_term'] = array(
+  $options = db_query("SELECT tid, name from {taxonomy_term_data} WHERE vocabulary = 'site_sections' ORDER BY name ASC")->fetchAllKeyed(0, 1);
+  $form['add_term'] = array(
     '#type' => 'select',
-    '#title' => t('Remove this category'),
+    '#title' => t('Add this category'),
     '#options' => $options,
   );
   $form['from'] = array(
@@ -140,17 +140,18 @@ function modify_feild_values_action_confirm($form, &$form_state) {
  * @ingroup forms
  */
 function modify_feild_values_action_confirm_submit($form, &$form_state) {
-  $tid = $form_state['values']['remove_term'];
-
+  $tid = $form_state['values']['add_term'];
+  dpm($tid);
   $nodes = node_load_multiple(array_keys($form_state['values']['nodes']));
   foreach ($nodes as $node) {
-    if (property_exists($node, 'taxonomy_vocabulary_1')) {
+    dpm($node);
+    if (property_exists($node, 'field_site_sections')) {
       $lang = $node->langcode;
-      foreach ($node->taxonomy_vocabulary_1[$lang] as $delta => $value) {
-        if ($value['tid'] == $tid) {
-          unset($node->taxonomy_vocabulary_1[$lang][$delta]);
-        }
-      }
+      //foreach ($node->taxonomy_site_sections[$lang] as $delta => $value) {
+      //  if ($value['tid'] == $tid) {
+          $node->field_site_sections[$lang][0]['tid'] = $tid;
+      //  }
+      // }
     }
     $node->save();
   }
@@ -173,4 +174,3 @@ function node_multiple_delete_confirm_submit($form, &$form_state) {
 
 
 }
-
